@@ -24,13 +24,13 @@ def observationM = [
 ]
 
 //Observed sequence 1 = S, 2 = M, 3 = X
-def observS = ['S','X','S','X','S','X','S','X','S','X']
+def observS = ['S','S','M','X','S','S','M','X','X','X']
 
 //Initial matrix
 def initial = ['motor':0.4,'osobowy':0.3,'autobus':0.3]
 
 
-def forward(states,observations,statesM,transitionM,observationM,observS){
+def forward(states,observations,statesM,transitionM,observationM,observS,scale){
     def p = []
     def sM = statesM.clone()
 
@@ -44,47 +44,75 @@ def forward(states,observations,statesM,transitionM,observationM,observS){
             newstates[s1] = val
         }
         sM = newstates
+        def sum = 0
         sM.each{ def key,value ->
             sM[key] *= observationM[key][o]
+            sum += sM[key]
+        }
+
+        scale << 1/sum
+        sM.each{ key,value ->
+        //    sM[key] = value/sum
         }
         p << sM
     }
     return p
 }
 
-def backward(states,observations,statesM,transitionM,observationM,observS){
-    def bwd = [:]
+def backward(states,observations,statesM,transitionM,observationM,observS,scale){
     def oLength = observS.size()
+    def bwd = new Object[oLength]
+    bwd.eachWithIndex{it,i->
+        bwd[i] = [:]
+    }
     states.each{ state ->
-        bwd[state] = new double[oLength]
-        bwd[state][oLength-1] = 1
+        bwd[oLength-1][state] = 1
     }
     for(int i=oLength-2;i>=0;i--){
         states.each{ s1 ->
-            bwd[s1][i] = 0
+            bwd[i][s1] = 0
             states.each{ s2 ->
-                bwd[s1][i] += bwd[s2][i + 1] * transitionM[s1][s2] * observationM[s2][observS[i+1]]
+                bwd[i][s1] += bwd[s2][i + 1] * transitionM[s1][s2] * observationM[s2][observS[i+1]]
             }
+            //bwd[i][s1] *= scale[i]
         }
     }
     return bwd
 }
 
 def forwardBackward(states,observations,statesM,transitionM,observationM,observS){
-    def f = forward(states,observations,statesM,transitionM,observationM,observS)
-    def b = backward(states,observations,statesM,transitionM,observationM,observS)
+    def scales = []
+    def f = forward(states,observations,statesM,transitionM,observationM,observS,scales)
+    def b = backward(states,observations,statesM,transitionM,observationM,observS,scales)
+    def result = []
+    def ret = []
+    observS.eachWithIndex { def entry, int i ->
+        def denom = 0
+        states.each{ state ->
+            //denom += statesM[state]* observationM[state][observS[0]]*b[0][state]
+        }
+        def tmp = [:]
+        states.each{ state ->
+                tmp[state] = f[i][state] * b[i][state]///denom
+        }
+        result << tmp
+
+        def argmax
+        def valmax = 0;
+        states.eachWithIndex{ state, k ->
+            def v_prob = tmp[state]
+            if (v_prob > valmax) {
+                argmax = state
+                valmax = v_prob;
+            }
+        }
+        ret << argmax
+    }
     println prettyPrint(toJson(f))
     println prettyPrint(toJson(b))
-    //scale
-    f.each { it ->
-        double sum = 0
-        states.each{ state ->
-            sum += it[state]
-        }
-        states.each{ state ->
-            sum += it[state]
-        }
-    }
+    println "result: " + prettyPrint(toJson(result))
+    return ret
+
 }
 
 public def virtebi(observations, states, statesM, transitionM, observationM, observS) {
@@ -129,9 +157,9 @@ public def virtebi(observations, states, statesM, transitionM, observationM, obs
             valmax = v_prob;
         }
     }
-    println "Prob: " + valmax
+    //println "Prob: " + valmax
     return argmax;
 }
 
-println(prettyPrint(toJson(forwardBackward(states,observations,initial,transitionM,observationM,observS))))
+println(forwardBackward(states,observations,initial,transitionM,observationM,observS))
 println(virtebi(observations,states,initial,transitionM,observationM,observS))
