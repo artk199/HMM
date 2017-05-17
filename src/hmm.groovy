@@ -108,9 +108,9 @@ def forwardBackward(states,observations,statesM,transitionM,observationM,observS
         }
         ret << argmax
     }
-    println prettyPrint(toJson(f))
-    println prettyPrint(toJson(b))
-    println "result: " + prettyPrint(toJson(result))
+    //println prettyPrint(toJson(f))
+    //println prettyPrint(toJson(b))
+    //println "result: " + prettyPrint(toJson(result))
     return ret
 
 }
@@ -161,5 +161,53 @@ public def virtebi(observations, states, statesM, transitionM, observationM, obs
     return argmax;
 }
 
-println(forwardBackward(states,observations,initial,transitionM,observationM,observS))
-println(virtebi(observations,states,initial,transitionM,observationM,observS))
+def test(states,observations,initial,transitionM,observationM){
+    for(int k=2;k<=100;k++) {
+        def vsum = 0
+        def fbsum = 0
+        100.times {
+            def testData = [observS: [], vert: [], fb: [], init: []]
+            //randomuj pierwszy element
+            Random random = new Random()
+            testData.init += randState(initial, random)
+            for (int i = 1; i < k; i++) {
+                testData.init << randState(transitionM[testData.init[i - 1]], random)
+            }
+            testData.init.each { it2 ->
+                testData.observS << randState(observationM[it2], random)
+            }
+
+            testData.fb = forwardBackward(states, observations, initial, transitionM, observationM, testData.observS)
+            testData.vert = virtebi(observations, states, initial, transitionM, observationM, testData.observS)
+            //println prettyPrint(toJson(testData))
+            vsum += getDiff(testData.init, testData.vert)
+            fbsum += getDiff(testData.init, testData.fb)
+        }
+        println ""+k+"\t" + vsum/100 + "\t" +fbsum/100
+    }
+
+}
+
+def randState(dist,Random random){
+    def rand = random.nextDouble()
+    def sum = 0
+    def ret = null
+    dist.each{ key,value ->
+        if(rand >= sum && rand <= (sum+value)){
+            ret = key
+        }
+        sum += value
+    }
+    return ret
+}
+test(states,observations,initial,transitionM,observationM)
+//println(forwardBackward(states,observations,initial,transitionM,observationM,observS))
+//println(virtebi(observations,states,initial,transitionM,observationM,observS))
+def getDiff(def a1, def a2) {
+    int count = 0
+    a1.eachWithIndex{ it, i ->
+        if(it != a2[i])
+            count ++
+    }
+    return count
+}
